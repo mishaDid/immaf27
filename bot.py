@@ -39,6 +39,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
 from aiogram.types import Message
 from aiogram.exceptions import TelegramBadRequest
+from aiohttp import web
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -236,7 +237,26 @@ async def updater_loop():
         await asyncio.sleep(soonest_delay)
 
 
+async def handle_ping(request):
+    """Відповідає 'OK' на будь-який HTTP-запит — потрібно, щоб Render
+    (і зовнішній пінгер на кшталт cron-job.org чи UptimeRobot) бачили,
+    що сервіс живий, і не давали йому заснути на безкоштовному плані."""
+    return web.Response(text="OK")
+
+
+async def run_web_server():
+    port = int(os.environ.get("PORT", "10000"))
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    log.info("Веб-сервер для пінгів слухає на порту %s", port)
+
+
 async def main():
+    await run_web_server()
     asyncio.create_task(updater_loop())
     log.info("Бот запущений")
     await dp.start_polling(bot)
